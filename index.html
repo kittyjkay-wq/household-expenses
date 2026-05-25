@@ -104,6 +104,8 @@
 <script>
 const PUBLISHED_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vR9V_9gWsEJ7zfytVzHHJM9xRfORQ1lkSz0GcahFVrIV0VUlisuFoLu0bhTGNYf0tjk4hkB95UnjV1p/pubhtml';
 const PASSWORD = 'household2026';
+const EXPENSES_GID = '444478678';
+const SETUP_GID = '1590294615';
 
 function checkPassword() {
     const input = document.getElementById('passwordInput').value;
@@ -141,9 +143,9 @@ document.getElementById('passwordInput').addEventListener('keypress', function(e
     if (e.key === 'Enter') checkPassword();
 });
 
-async function fetchSheetData(sheetName) {
+async function fetchSheetData(gid) {
     try {
-        const url = PUBLISHED_URL.replace('/pubhtml', `/export?format=csv&gid=${sheetName}`);
+        const url = PUBLISHED_URL.replace('/pubhtml', `/export?format=csv&gid=${gid}`);
         const response = await fetch(url);
         const csv = await response.text();
         const lines = csv.trim().split('\n');
@@ -172,8 +174,8 @@ async function fetchSheetData(sheetName) {
 }
 
 async function loadData() {
-    const expensesData = await fetchSheetData('0');
-    const setupData = await fetchSheetData('1734522820');
+    const expensesData = await fetchSheetData(EXPENSES_GID);
+    const setupData = await fetchSheetData(SETUP_GID);
     
     if (!expensesData || expensesData.length <= 1) {
         document.getElementById('needs-spent').textContent = 'No data';
