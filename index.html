@@ -113,7 +113,14 @@
     .bottom-grid { display:grid; grid-template-columns:1fr 1.5fr; gap:18px; }
     .chart-card, .table-card { background:var(--card); border-radius:16px; padding:24px; box-shadow:0 1px 3px rgba(0,0,0,.06),0 4px 12px rgba(0,0,0,.04); }
     .sec-title { font-size:15px; font-weight:700; color:var(--text1); margin-bottom:18px; }
-    .chart-wrap { position:relative; width:100%; }
+    .chart-wrap { position:relative; width:100%; cursor:pointer; }
+
+    /* FILTER CHIP */
+    .cat-filter-row { display:flex; align-items:center; gap:8px; margin-bottom:12px; font-size:13px; color:var(--text2); }
+    .filter-chip { display:inline-flex; align-items:center; gap:5px; background:#667eea; color:#fff; padding:3px 10px 3px 12px; border-radius:20px; font-size:12px; font-weight:600; }
+    .filter-chip button { background:none; border:none; color:#fff; cursor:pointer; font-size:16px; line-height:1; padding:0; opacity:.8; }
+    .filter-chip button:hover { opacity:1; }
+    html[data-theme="dark"] .filter-chip { background:#4F46E5; }
 
     /* CATEGORY BREAKDOWN TABLE */
     .cat-tbl-wrap { overflow-y:auto; max-height:420px; border-radius:8px; border:1px solid var(--border); }
@@ -288,6 +295,10 @@
         </div>
         <div class="table-card">
           <div class="sec-title">Breakdown by Category</div>
+          <div class="cat-filter-row" id="catFilterRow" style="display:none">
+            <span class="filter-chip"><span id="catFilterName"></span><button onclick="clearCatFilter()">×</button></span>
+            <span>click bar again to clear</span>
+          </div>
           <div class="cat-tbl-wrap">
             <table>
               <thead><tr><th>Category / Description</th><th style="text-align:right">Amount</th></tr></thead>
@@ -342,6 +353,7 @@ let timerRef      = null;
 let allExpenses   = [];
 let allSetup      = {};
 let selectedMonth = '';
+let selectedCat   = null;
 
 // ── THEME ──────────────────────────────────────────────────────────────────
 function toggleTheme() { setTheme(document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark'); }
@@ -406,6 +418,7 @@ function populateMonthFilter(expenses) {
 }
 function applyFilter() {
   selectedMonth = document.getElementById('monthFilter').value;
+  selectedCat   = null;
   renderAll(getFiltered(), allSetup);
 }
 
@@ -537,28 +550,47 @@ function renderChart(expenses) {
   const sorted=Object.entries(totals).sort((a,b)=>b[1]-a[1]);
   const labels=sorted.map(([k])=>k);
   const data=sorted.map(([,v])=>v);
-  const colors=labels.map(lbl=>{
-    const b=CAT_MAP[lbl.toLowerCase().trim()];
-    return b==='Needs'?'#0EA5E9':b==='Wants'?'#F59E0B':'#94A3B8';
-  });
+  const maxVal=Math.max(...data,1);
+  const baseColor=lbl=>{const b=CAT_MAP[lbl.toLowerCase().trim()];return b==='Needs'?'#0EA5E9':b==='Wants'?'#F59E0B':'#94A3B8';};
+  const colors=labels.map(lbl=>selectedCat&&lbl!==selectedCat?baseColor(lbl)+'55':baseColor(lbl));
   if(chartInst){chartInst.destroy();chartInst=null;}
   const dark=document.documentElement.getAttribute('data-theme')==='dark';
-  const h=Math.max(180,labels.length*38+40);
+  const h=Math.max(180,labels.length*42+40);
   document.getElementById('chartWrap').style.height=h+'px';
   chartInst=new Chart(document.getElementById('catChart').getContext('2d'),{
     type:'bar',
     data:{labels,datasets:[{data,backgroundColor:colors,borderRadius:5,borderSkipped:false}]},
     options:{
-      indexAxis:'y', responsive:true, maintainAspectRatio:false,
+      indexAxis:'y',responsive:true,maintainAspectRatio:false,
       layout:{padding:{right:72}},
+      onClick:(evt,elements)=>{
+        if(!elements.length){
+          if(selectedCat){selectedCat=null;renderChart(getFiltered());renderCategoryTable(getFiltered());}
+          return;
+        }
+        const clicked=labels[elements[0].index];
+        selectedCat=selectedCat===clicked?null:clicked;
+        renderChart(getFiltered());
+        renderCategoryTable(getFiltered());
+      },
       plugins:{
         legend:{display:false},
         tooltip:{callbacks:{label:ctx=>'  '+fmt(ctx.raw)}},
         datalabels:{
-          anchor:'end', align:'end',
-          formatter:v=>fmtShort(v),
-          color:dark?'#94A3B8':'#64748B',
-          font:{size:11,weight:'600'}
+          labels:{
+            name:{
+              anchor:'start',align:'end',
+              formatter:(v,ctx)=>ctx.chart.data.labels[ctx.dataIndex],
+              color:'#fff',font:{size:11,weight:'600'},padding:{left:6},
+              display:(ctx)=>ctx.chart.data.datasets[0].data[ctx.dataIndex]/maxVal>0.15
+            },
+            value:{
+              anchor:'end',align:'end',
+              formatter:v=>fmtShort(v),
+              color:dark?'#94A3B8':'#64748B',
+              font:{size:11,weight:'600'}
+            }
+          }
         }
       },
       scales:{
@@ -577,7 +609,16 @@ function renderCategoryTable(expenses) {
     if(!groups[e.cat]) groups[e.cat]={bucket:e.bucket,items:[],total:0};
     groups[e.cat].items.push(e); groups[e.cat].total+=e.amt;
   }
-  const sorted=Object.entries(groups).sort(([,a],[,b])=>b.total-a.total);
+  // Apply category filter if one is selected
+  const display = selectedCat ? Object.fromEntries(Object.entries(groups).filter(([cat])=>cat===selectedCat)) : groups;
+  const sorted=Object.entries(display).sort(([,a],[,b])=>b.total-a.total);
+
+  // Update filter chip visibility
+  const row=document.getElementById('catFilterRow');
+  const nameEl=document.getElementById('catFilterName');
+  if(selectedCat){row.style.display='flex';nameEl.textContent=selectedCat;}
+  else{row.style.display='none';}
+
   const tbody=document.getElementById('catTableBody');
   if(!sorted.length){tbody.innerHTML='<tr class="empty-row"><td colspan="2">No transactions found</td></tr>';return;}
   let html='';
@@ -589,6 +630,12 @@ function renderCategoryTable(expenses) {
     });
   }
   tbody.innerHTML=html;
+}
+
+function clearCatFilter() {
+  selectedCat=null;
+  renderChart(getFiltered());
+  renderCategoryTable(getFiltered());
 }
 
 // ── RENDER: TRANSACTIONS ───────────────────────────────────────────────────
