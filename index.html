@@ -364,30 +364,12 @@ const barLabelPlugin = {
     for (var i = 0; i < data.length; i++) {
       var bar    = meta.data[i];
       if (!bar) continue;
-      var barLen = bar.x - bar.base;
-      var cy     = bar.y;
-      /* dollar amount — outside bar, right side */
-      ctx.font          = 'bold 11px -apple-system,BlinkMacSystemFont,sans-serif';
-      ctx.textAlign     = 'left';
-      ctx.textBaseline  = 'middle';
-      ctx.fillStyle     = dark ? '#94A3B8' : '#475569';
+      var cy = bar.y;
+      ctx.font         = 'bold 11px -apple-system,BlinkMacSystemFont,sans-serif';
+      ctx.textAlign    = 'left';
+      ctx.textBaseline = 'middle';
+      ctx.fillStyle    = dark ? '#94A3B8' : '#475569';
       ctx.fillText(fmtShort(data[i]), bar.x + 6, cy);
-      /* category name — inside bar when wide enough */
-      if (barLen > 72) {
-        ctx.font          = 'bold 11px -apple-system,BlinkMacSystemFont,sans-serif';
-        ctx.textAlign     = 'left';
-        ctx.textBaseline  = 'middle';
-        ctx.fillStyle     = 'rgba(255,255,255,0.92)';
-        /* clip text so it stays inside the bar */
-        var maxW = barLen - 12;
-        var lbl  = labels[i];
-        /* truncate if needed */
-        while (ctx.measureText(lbl).width > maxW && lbl.length > 1) {
-          lbl = lbl.slice(0, -1);
-        }
-        if (lbl !== labels[i]) lbl = lbl.slice(0, -1) + '…';
-        ctx.fillText(lbl, bar.base + 7, cy);
-      }
     }
     ctx.restore();
   }
